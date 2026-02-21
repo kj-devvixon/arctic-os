@@ -1,0 +1,7 @@
+# Build artifacts
+build/
+*.o
+*.elf
+
+# ISO image (duży plik binarny, opcjonalnie)
+*.iso
