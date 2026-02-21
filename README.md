@@ -11,13 +11,14 @@ A bare-metal operating system with a custom kernel, written in C & ASM from scra
 - 32-bit Protected Mode (i386/i686)
 - GRUB2 Multiboot 1 bootloader
 - VESA VBE framebuffer display (800x600+)
-- Custom desktop manager
+- **Custom** desktop manager
 - PS/2 keyboard driver (US QWERTY)
 - PIT 8253 timer (100Hz)
-- CMOS Real Time Clock
+- CMOS **Real Time Clock**
 - IDT + PIC 8259A interrupt handling
 - GDT setup
-- Built-in libc (no stdlib dependency)
+- **Built-in libc** (no stdlib dependency)
+- **Custom Graphics Pipeline** – 1-bit monochrome bitmap rendering with byte-aligned row strides for pixel-perfect assets.
 
 ### Apps
 - **Clock** – analog + digital clock using real RTC data
@@ -38,6 +39,7 @@ arctic-os/
 │   ├── kernel.c          # Kernel entry point
 │   ├── gdt.c             # Global Descriptor Table
 │   ├── idt.c             # Interrupt Descriptor Table + PIC
+|   ├── logo_data.c       # Monochrome logo bitmap data (13-byte stride)
 │   └── desktop.c         # Desktop manager
 ├── drivers/
 │   ├── framebuffer.c     # VESA VBE + 8x16 font + graphics
@@ -51,7 +53,8 @@ arctic-os/
 ├── libc/
 │   └── libc.c            # Custom C library
 ├── include/
-│   └── kernel.h          # Headers, types, declarations
+│    ├── logo_data.h      # Headers, types, declarations
+|    └── kernel.h         # Headers, types, declarations
 └── grub/
     └── grub.cfg          # GRUB config
 ```
