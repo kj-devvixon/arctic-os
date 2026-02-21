@@ -64,6 +64,7 @@ C_SOURCES := kernel/kernel.c \
              kernel/gdt.c \
              kernel/idt.c \
              kernel/desktop.c \
+             kernel/logo_data.c \
              drivers/framebuffer.c \
              drivers/keyboard.c \
              drivers/rtc.c \

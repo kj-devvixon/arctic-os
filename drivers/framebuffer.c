@@ -4,7 +4,9 @@
 // ============================================================
 
 #include "../include/kernel.h"
+#include "../include/logo_data.h"
 
+#define abs(x) ((x) < 0 ? -(x) : (x))
 // ============================================================
 // 8x8 FONT (IBM PC 437, minimal ASCII 32-127 set)
 // Each character is 8 bytes (8 rows of 8 bits)
@@ -111,57 +113,48 @@ static const u8 font8x8[128][8] = {
 // FRAMEBUFFER INIT - Multiboot 1
 // ============================================================
 void fb_init(multiboot_info_t *mbi) {
-    fb.addr         = (u32 *)(u32)mbi->framebuffer_addr;
-    fb.pitch        = mbi->framebuffer_pitch;
-    fb.width        = mbi->framebuffer_width;
-    fb.height       = mbi->framebuffer_height;
+    fb.addr          = (u32 *)(u32)mbi->framebuffer_addr;
+    fb.pitch         = mbi->framebuffer_pitch;
+    fb.width         = mbi->framebuffer_width;
+    fb.height        = mbi->framebuffer_height;
     fb.bpp          = mbi->framebuffer_bpp;
     fb.pitch_pixels = mbi->framebuffer_pitch / 4;
 }
 
 // ============================================================
 // FRAMEBUFFER INIT - Multiboot 2
-// Parses MB2 tags and finds framebuffer tag (type=8)
 // ============================================================
 void fb_init_mb2(mb2_info_t *mb2) {
-    // Tags start 8 bytes after the MB2 structure
     u8 *tag_ptr = (u8 *)mb2 + 8;
     u8 *end_ptr = (u8 *)mb2 + mb2->total_size;
 
     while (tag_ptr < end_ptr) {
         mb2_tag_t *tag = (mb2_tag_t *)tag_ptr;
-
-        if (tag->type == 0) break;  // end tag
-
+        if (tag->type == 0) break;
         if (tag->type == 8) {
-            // Framebuffer tag
             mb2_tag_framebuffer_t *fbtag = (mb2_tag_framebuffer_t *)tag;
-            fb.addr         = (u32 *)(u32)fbtag->framebuffer_addr;
-            fb.pitch        = fbtag->framebuffer_pitch;
-            fb.width        = fbtag->framebuffer_width;
-            fb.height       = fbtag->framebuffer_height;
+            fb.addr          = (u32 *)(u32)fbtag->framebuffer_addr;
+            fb.pitch         = fbtag->framebuffer_pitch;
+            fb.width         = fbtag->framebuffer_width;
+            fb.height        = fbtag->framebuffer_height;
             fb.bpp          = fbtag->framebuffer_bpp;
             fb.pitch_pixels = fbtag->framebuffer_pitch / 4;
             return;
         }
-
-        // Next tag - align to 8 bytes
         u32 next = (tag->size + 7) & ~7u;
         tag_ptr += next;
     }
-
-    // Fallback if tag not found - default values
-    fb.addr         = (u32 *)0xFD000000;
-    fb.pitch        = 3200;
-    fb.width        = 800;
-    fb.height       = 600;
+    // Fallback
+    fb.addr          = (u32 *)0xFD000000;
+    fb.pitch         = 3200;
+    fb.width         = 800;
+    fb.height        = 600;
     fb.bpp          = 32;
     fb.pitch_pixels = 800;
 }
 
 // ============================================================
 // BASIC PIXEL OPERATIONS
-// Byte-addressed (correct for any bpp and pitch)
 // ============================================================
 void fb_put_pixel(int x, int y, u32 color) {
     if (x < 0 || y < 0 || (u32)x >= fb.width || (u32)y >= fb.height)
@@ -201,12 +194,10 @@ void fb_fill_rect(int x, int y, int w, int h, u32 color) {
 
 void fb_draw_rect(int x, int y, int w, int h, u32 color, int thickness) {
     for (int t = 0; t < thickness; t++) {
-        // Top and bottom edges
         for (int col = x; col < x + w; col++) {
             fb_put_pixel(col, y + t, color);
             fb_put_pixel(col, y + h - 1 - t, color);
         }
-        // Left and right edges
         for (int row = y; row < y + h; row++) {
             fb_put_pixel(x + t, row, color);
             fb_put_pixel(x + w - 1 - t, row, color);
@@ -214,30 +205,8 @@ void fb_draw_rect(int x, int y, int w, int h, u32 color, int thickness) {
     }
 }
 
-void fb_draw_line(int x0, int y0, int x1, int y1, u32 color) {
-    int dx = x1 - x0; if (dx < 0) dx = -dx;
-    int dy = y1 - y0; if (dy < 0) dy = -dy;
-    int sx = (x0 < x1) ? 1 : -1;
-    int sy = (y0 < y1) ? 1 : -1;
-    int err = dx - dy;
-    while (1) {
-        fb_put_pixel(x0, y0, color);
-        if (x0 == x1 && y0 == y1) break;
-        int e2 = 2 * err;
-        if (e2 > -dy) { err -= dy; x0 += sx; }
-        if (e2 <  dx) { err += dx; y0 += sy; }
-    }
-}
-
-void fb_fill_circle(int cx, int cy, int r, u32 color) {
-    for (int y = -r; y <= r; y++)
-        for (int x = -r; x <= r; x++)
-            if (x*x + y*y <= r*r)
-                fb_put_pixel(cx + x, cy + y, color);
-}
-
 // ============================================================
-// TEXT RENDERING (8x8 font, scalable)
+// TEXT & LOGO RENDERING
 // ============================================================
 void fb_draw_char(int x, int y, char c, u32 fg, u32 bg, int scale) {
     unsigned char uc = (unsigned char)c;
@@ -246,8 +215,8 @@ void fb_draw_char(int x, int y, char c, u32 fg, u32 bg, int scale) {
 
     for (int row = 0; row < 8; row++) {
         for (int col = 0; col < 8; col++) {
-            // Horizontal flip: read bit from right (LSB) instead of left (MSB)
             u32 pixel_color = (glyph[row] & (0x01 << col)) ? fg : bg;
+            if (pixel_color == bg && bg == 0x00000000) continue; // "Transparent"
             for (int sy = 0; sy < scale; sy++)
                 for (int sx = 0; sx < scale; sx++)
                     fb_put_pixel(x + col*scale + sx, y + row*scale + sy, pixel_color);
@@ -261,5 +230,60 @@ void fb_draw_string(int x, int y, const char *s, u32 fg, u32 bg, int scale) {
         fb_draw_char(cur_x, y, *s, fg, bg, scale);
         cur_x += 8 * scale;
         s++;
+    }
+}
+
+void fb_draw_logo(int start_x, int start_y, u32 color) {
+    // logo_bits to nazwa tablicy z Twojego nowego pliku output.c
+    extern unsigned char arctic_logo[]; 
+    
+    const int bytes_per_row = 13; // KLUCZOWE: 13 bajtów na wiersz
+
+    for (int y = 0; y < 100; y++) {
+        for (int b = 0; b < bytes_per_row; b++) {
+            unsigned char data = arctic_logo[y * bytes_per_row + b];
+            
+            for (int bit = 0; bit < 8; bit++) {
+                int x = b * 8 + bit;
+                
+                // Rysujemy tylko 100 pikseli, ignorujemy 4 bity paddingu na końcu
+                if (x < 100) {
+                    // Wyciągamy bit (MSB first - zgodnie ze skryptem CoddyAI)
+                    if (data & (1 << (7 - bit))) {
+                        fb_put_pixel(start_x + x, start_y + y, color);
+                    }
+                }
+            }
+        }
+    }
+}
+void fb_draw_loading_bar(int x, int y, int w, int h, int progress, u32 color) {
+    fb_draw_rect(x - 2, y - 2, w + 4, h + 4, 0x555555, 1);
+    int fill_w = (progress * w) / 100;
+    if (fill_w > 0) {
+        fb_fill_rect(x, y, fill_w, h, color);
+    }
+}
+void fb_draw_line(int x0, int y0, int x1, int y1, u32 color) {
+    int dx =  abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy, e2;
+
+    for (;;) {
+        fb_put_pixel(x0, y0, color);
+        if (x0 == x1 && y0 == y1) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
+void fb_fill_circle(int cx, int cy, int r, u32 color) {
+    for (int y = -r; y <= r; y++) {
+        for (int x = -r; x <= r; x++) {
+            if (x * x + y * y <= r * r) {
+                fb_put_pixel(cx + x, cy + y, color);
+            }
+        }
     }
 }

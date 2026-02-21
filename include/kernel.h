@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "logo_data.h" // Zawiera LOGO_WIDTH, LOGO_HEIGHT i tablicę arctic_logo
 
 // ============================================================
 // BASIC TYPES
@@ -147,6 +148,10 @@ void fb_draw_char(int x, int y, char c, u32 fg, u32 bg, int scale);
 void fb_draw_string(int x, int y, const char *s, u32 fg, u32 bg, int scale);
 void fb_draw_line(int x0, int y0, int x1, int y1, u32 color);
 void fb_fill_circle(int cx, int cy, int r, u32 color);
+
+// Splash Screen & Utilities
+void fb_draw_logo(int start_x, int start_y, u32 color);
+void fb_draw_loading_bar(int x, int y, int w, int h, int progress, u32 color);
 
 // PS/2 Mouse
 void mouse_init(void);
